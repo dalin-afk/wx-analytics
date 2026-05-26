@@ -70,7 +70,7 @@ def parse_wx_excel(file_bytes, filename):
     # === 1. 数据概况区域 ===
     data_overview_row = find_row_by_keyword(df, "数据概况", col_index=1)
     if data_overview_row is not None:
-        logs.append(f"  ✅ 找到"数据概况"，起始行：{data_overview_row + 1}")
+        logs.append(f"  ✅ 找到'数据概况'，起始行：{data_overview_row + 1}")
         start_idx = data_overview_row + 1
         metrics_mapping = {
             "阅读(人)": "全部阅读人数",
@@ -110,12 +110,12 @@ def parse_wx_excel(file_bytes, filename):
             if not matched and ("阅读转化" in b_col_str or "数据趋势" in b_col_str):
                 break
     else:
-        logs.append("  ⚠️ 未找到"数据概况"区域")
+        logs.append("  ⚠️ 未找到'数据概况'区域")
 
     # === 2. 阅读转化区域 - 送达人数 ===
     conversion_row = find_row_by_keyword(df, "阅读转化", col_index=1)
     if conversion_row is not None:
-        logs.append(f"  ✅ 找到"阅读转化"，起始行：{conversion_row + 1}")
+        logs.append(f"  ✅ 找到'阅读转化'，起始行：{conversion_row + 1}")
         for idx in range(conversion_row + 1, min(conversion_row + 20, len(df))):
             if len(df.columns) < 3:
                 break
@@ -127,12 +127,12 @@ def parse_wx_excel(file_bytes, filename):
                 result["送达人数"] = int(c_col_val) if pd.notna(c_col_val) else 0
                 break
     else:
-        logs.append("  ⚠️ 未找到"阅读转化"区域")
+        logs.append("  ⚠️ 未找到'阅读转化'区域")
 
     # === 3. 数据趋势明细区域 - 各渠道 ===
     detail_row = find_row_by_keyword(df, "数据趋势明细", col_index=1)
     if detail_row is not None:
-        logs.append(f"  ✅ 找到"数据趋势明细"，起始行：{detail_row + 1}")
+        logs.append(f"  ✅ 找到'数据趋势明细'，起始行：{detail_row + 1}")
         start_idx = detail_row + 2
         channel_mapping = {
             "推荐": "推荐阅读人数",
@@ -167,7 +167,7 @@ def parse_wx_excel(file_bytes, filename):
                 break
         logs.append(f"  共读取 {row_count} 行渠道数据")
     else:
-        logs.append("  ⚠️ 未找到"数据趋势明细"区域")
+        logs.append("  ⚠️ 未找到'数据趋势明细'区域")
 
     logs.append("  ✅ 解析完成")
     return result, logs
