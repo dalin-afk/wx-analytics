@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pid
+*.log
+start.py
+start.vbs
+.streamlit/secrets.toml
