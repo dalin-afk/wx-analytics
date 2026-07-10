@@ -5,6 +5,9 @@ import io
 # ===================== 核心解析逻辑 =====================
 
 def extract_title_from_excel(df):
+    """
+    从Excel的B1/C1合并单元格中提取文章标题
+    """
     try:
         if len(df.columns) > 1 and pd.notna(df.iloc[0, 1]):
             title = str(df.iloc[0, 1]).strip()
@@ -20,6 +23,10 @@ def extract_title_from_excel(df):
 
 
 def find_row_by_keyword(df, keyword, start_row=0, col_index=1):
+    """
+    在指定列中查找包含关键词的行
+    返回: 行索引，如果没找到返回None
+    """
     for idx in range(start_row, len(df)):
         if len(df.columns) > col_index and pd.notna(df.iloc[idx, col_index]):
             if keyword in str(df.iloc[idx, col_index]):
@@ -27,43 +34,99 @@ def find_row_by_keyword(df, keyword, start_row=0, col_index=1):
     return None
 
 
-def parse_distribution_block(df, header_keyword, skip_keywords=None):
+def parse_gender_distribution(df, start_row):
     """
-    通用分布块解析：找到 header_keyword 所在行后，
-    读取下方 B列=指标、C列=占比 的数据，直到遇到空行或新区块为止。
-    返回 {指标: 占比字符串} 字典，找不到则返回 None。
+    解析性别分布，按表格内原值输出，不做转换
     """
-    if skip_keywords is None:
-        skip_keywords = []
+    gender_data = {
+        "性别_女": 0,
+        "性别_男": 0,
+        "性别_未知": 0
+    }
 
-    header_row = find_row_by_keyword(df, header_keyword, col_index=1)
-    if header_row is None:
-        return None
+    if start_row is None:
+        return gender_data
 
-    data = {}
-    for idx in range(header_row + 1, min(header_row + 30, len(df))):
-        b_val = df.iloc[idx, 1] if len(df.columns) > 1 else None
-        c_val = df.iloc[idx, 2] if len(df.columns) > 2 else None
+    for idx in range(start_row, min(start_row + 10, len(df))):
+        if len(df.columns) < 3:
+            break
 
-        if pd.isna(b_val):
-            break  # 空行 = 区块结束
+        b_col_val = df.iloc[idx, 1] if pd.notna(df.iloc[idx, 1]) else ""
+        c_col_val = df.iloc[idx, 2] if len(df.columns) > 2 and pd.notna(df.iloc[idx, 2]) else 0
 
-        b_str = str(b_val).strip()
-        c_str = str(c_val).strip() if pd.notna(c_val) else ""
-
-        # 跳过表头行
-        if any(k in b_str for k in skip_keywords):
-            continue
-        if b_str == "" or c_str == "":
+        if pd.isna(b_col_val):
             continue
 
-        data[b_str] = c_str
+        b_col_str = str(b_col_val).strip()
 
-    return data if data else None
+        if "女" in b_col_str and "男" not in b_col_str:
+            gender_data["性别_女"] = c_col_val
+        elif "男" in b_col_str:
+            gender_data["性别_男"] = c_col_val
+        elif "未知" in b_col_str:
+            gender_data["性别_未知"] = c_col_val
+
+        if b_col_str == "" and idx > start_row:
+            break
+
+    return gender_data
+
+
+def parse_age_distribution(df, start_row):
+    """
+    解析年龄分布，按表格内原值输出，不做转换
+    分类：18岁以下、18-25岁、26-35岁、36-45岁、46-60岁、60岁以上、未知
+    """
+    age_data = {
+        "年龄_18岁以下": 0,
+        "年龄_18-25岁": 0,
+        "年龄_26-35岁": 0,
+        "年龄_36-45岁": 0,
+        "年龄_46-60岁": 0,
+        "年龄_60岁以上": 0,
+        "年龄_未知": 0
+    }
+
+    if start_row is None:
+        return age_data
+
+    for idx in range(start_row, min(start_row + 15, len(df))):
+        if len(df.columns) < 3:
+            break
+
+        b_col_val = df.iloc[idx, 1] if pd.notna(df.iloc[idx, 1]) else ""
+        c_col_val = df.iloc[idx, 2] if len(df.columns) > 2 and pd.notna(df.iloc[idx, 2]) else 0
+
+        if pd.isna(b_col_val):
+            continue
+
+        b_col_str = str(b_col_val).strip()
+
+        if "未知" in b_col_str and "年龄" not in b_col_str:
+            age_data["年龄_未知"] = c_col_val
+        elif "0-17" in b_col_str or "0~17" in b_col_str or "18岁以下" in b_col_str or "18以下" in b_col_str:
+            age_data["年龄_18岁以下"] = c_col_val
+        elif "18-25" in b_col_str or "18~25" in b_col_str:
+            age_data["年龄_18-25岁"] = c_col_val
+        elif "26-35" in b_col_str or "26~35" in b_col_str:
+            age_data["年龄_26-35岁"] = c_col_val
+        elif "36-45" in b_col_str or "36~45" in b_col_str:
+            age_data["年龄_36-45岁"] = c_col_val
+        elif "46-60" in b_col_str or "46~60" in b_col_str or "46-55" in b_col_str or "46~55" in b_col_str:
+            age_data["年龄_46-60岁"] = c_col_val
+        elif "56-65" in b_col_str or "56~65" in b_col_str or "60以上" in b_col_str or "60岁以上" in b_col_str or "65以上" in b_col_str:
+            age_data["年龄_60岁以上"] = c_col_val
+
+        if b_col_str == "" and idx > start_row + 2:
+            break
+
+    return age_data
 
 
 def parse_wx_excel(file_bytes, filename):
-    """解析单个公众号后台导出的Excel文件，返回结果字典、分布字典和日志列表"""
+    """
+    解析单个公众号后台导出的Excel文件，返回结果字典和日志列表
+    """
     logs = []
     logs.append(f"📄 正在处理：**{filename}**")
 
@@ -74,7 +137,7 @@ def parse_wx_excel(file_bytes, filename):
             df = pd.read_excel(io.BytesIO(file_bytes), header=None, engine='openpyxl')
     except Exception as e:
         logs.append(f"❌ 文件读取失败：{e}")
-        return None, None, logs
+        return None, logs
 
     logs.append(f"  文件维度：{len(df)}行 × {len(df.columns)}列")
 
@@ -85,6 +148,8 @@ def parse_wx_excel(file_bytes, filename):
         "文章标题": article_title,
         "全部阅读人数": 0,
         "送达人数": 0,
+        "首次分享人数": 0,
+        "分享产生的阅读人数": 0,
         "推荐阅读人数": 0,
         "其他阅读人数": 0,
         "公众号消息阅读人数": 0,
@@ -97,12 +162,26 @@ def parse_wx_excel(file_bytes, filename):
         "评论次数": 0,
         "总分享人数": 0,
         "在看人数": 0,
+        "收藏人数": 0,
         "停留时间": 0,
         "完读率": 0,
+        # 性别分布
+        "性别_女": 0,
+        "性别_男": 0,
+        "性别_未知": 0,
+        # 年龄分布
+        "年龄_18岁以下": 0,
+        "年龄_18-25岁": 0,
+        "年龄_26-35岁": 0,
+        "年龄_36-45岁": 0,
+        "年龄_46-60岁": 0,
+        "年龄_60岁以上": 0,
+        "年龄_未知": 0,
     }
 
-    # === 1. 数据概况区域 ===
-    data_overview_row = find_row_by_keyword(df, "数据概况", col_index=1)
+    # ========== 1. 从"数据概况"区域提取指标 ==========
+    data_overview_row = find_row_by_keyword(df, "数据概况", start_row=0, col_index=1)
+
     if data_overview_row is not None:
         logs.append(f"  ✅ 找到'数据概况'，起始行：{data_overview_row + 1}")
         start_idx = data_overview_row + 1
@@ -115,6 +194,7 @@ def parse_wx_excel(file_bytes, filename):
             "分享(人)": "总分享人数",
             "分享人数": "总分享人数",
             "在看": "在看人数",
+            "收藏": "收藏人数",
             "平均停留时长": "停留时间",
             "完读率": "完读率",
         }
@@ -146,25 +226,32 @@ def parse_wx_excel(file_bytes, filename):
     else:
         logs.append("  ⚠️ 未找到'数据概况'区域")
 
-    # === 2. 阅读转化区域 - 送达人数 ===
-    conversion_row = find_row_by_keyword(df, "阅读转化", col_index=1)
+    # ========== 2. 从"阅读转化"区域提取送达人数、首次分享人数、分享产生的阅读人数 ==========
+    conversion_row = find_row_by_keyword(df, "阅读转化", start_row=0, col_index=1)
+
     if conversion_row is not None:
         logs.append(f"  ✅ 找到'阅读转化'，起始行：{conversion_row + 1}")
-        for idx in range(conversion_row + 1, min(conversion_row + 20, len(df))):
+        start_idx = conversion_row + 1
+        for idx in range(start_idx, min(start_idx + 20, len(df))):
             if len(df.columns) < 3:
                 break
             b_col_val = df.iloc[idx, 1] if pd.notna(df.iloc[idx, 1]) else ""
             c_col_val = df.iloc[idx, 2] if len(df.columns) > 2 and pd.notna(df.iloc[idx, 2]) else 0
             if pd.isna(b_col_val):
                 continue
-            if "送达人数" in str(b_col_val):
+            b_col_str = str(b_col_val).strip()
+            if "送达人数" in b_col_str:
                 result["送达人数"] = int(c_col_val) if pd.notna(c_col_val) else 0
-                break
+            elif "首次分享人数" in b_col_str or "首次分享" in b_col_str:
+                result["首次分享人数"] = int(c_col_val) if pd.notna(c_col_val) else 0
+            elif "分享产生的阅读人数" in b_col_str or "分享产生阅读" in b_col_str:
+                result["分享产生的阅读人数"] = int(c_col_val) if pd.notna(c_col_val) else 0
     else:
         logs.append("  ⚠️ 未找到'阅读转化'区域")
 
-    # === 3. 数据趋势明细区域 - 各渠道 ===
-    detail_row = find_row_by_keyword(df, "数据趋势明细", col_index=1)
+    # ========== 3. 从"数据趋势明细"区域提取各渠道阅读人数 ==========
+    detail_row = find_row_by_keyword(df, "数据趋势明细", start_row=0, col_index=1)
+
     if detail_row is not None:
         logs.append(f"  ✅ 找到'数据趋势明细'，起始行：{detail_row + 1}")
         start_idx = detail_row + 2
@@ -189,7 +276,7 @@ def parse_wx_excel(file_bytes, filename):
             if pd.isna(date_val) or pd.isna(channel_val):
                 continue
             channel = str(channel_val).strip()
-            if any(k in channel for k in ["日期", "传播渠道", "渠道"]):
+            if "日期" in channel or "传播渠道" in channel or "渠道" in channel:
                 continue
             read_num = int(read_val) if pd.notna(read_val) else 0
             for keyword, field_name in channel_mapping.items():
@@ -203,123 +290,69 @@ def parse_wx_excel(file_bytes, filename):
     else:
         logs.append("  ⚠️ 未找到'数据趋势明细'区域")
 
-    # === 4. 性别分布 ===
-    gender_data = parse_distribution_block(df, "性别分布", skip_keywords=["性别", "占比"])
-    if gender_data:
-        logs.append(f"  ✅ 找到性别分布：{gender_data}")
+    # ========== 4. 解析性别分布 ==========
+    gender_row = find_row_by_keyword(df, "性别分布", start_row=0, col_index=1)
+    if gender_row is not None:
+        logs.append(f"  ✅ 找到'性别分布'，起始行：{gender_row + 1}")
+        gender_data = parse_gender_distribution(df, gender_row + 2)
+        result["性别_女"] = gender_data["性别_女"]
+        result["性别_男"] = gender_data["性别_男"]
+        result["性别_未知"] = gender_data["性别_未知"]
     else:
-        logs.append("  ⚠️ 未找到性别分布区域")
+        logs.append("  ⚠️ 未找到'性别分布'区域")
 
-    # === 5. 年龄分布 ===
-    age_data = parse_distribution_block(df, "年龄分布", skip_keywords=["年龄", "占比"])
-    if age_data:
-        logs.append(f"  ✅ 找到年龄分布：{age_data}")
+    # ========== 5. 解析年龄分布 ==========
+    age_row = find_row_by_keyword(df, "年龄分布", start_row=0, col_index=1)
+    if age_row is not None:
+        logs.append(f"  ✅ 找到'年龄分布'，起始行：{age_row + 1}")
+        age_data = parse_age_distribution(df, age_row + 2)
+        result["年龄_18岁以下"] = age_data["年龄_18岁以下"]
+        result["年龄_18-25岁"] = age_data["年龄_18-25岁"]
+        result["年龄_26-35岁"] = age_data["年龄_26-35岁"]
+        result["年龄_36-45岁"] = age_data["年龄_36-45岁"]
+        result["年龄_46-60岁"] = age_data["年龄_46-60岁"]
+        result["年龄_60岁以上"] = age_data["年龄_60岁以上"]
+        result["年龄_未知"] = age_data["年龄_未知"]
     else:
-        logs.append("  ⚠️ 未找到年龄分布区域")
-
-    # === 6. 地域分布（Top省份）===
-    region_data = parse_distribution_block(df, "地域分布", skip_keywords=["省份", "直辖市", "占比", "地域"])
-    if region_data:
-        logs.append(f"  ✅ 找到地域分布，共 {len(region_data)} 个省份")
-    else:
-        logs.append("  ⚠️ 未找到地域分布区域")
-
-    # 合并分布数据
-    distributions = {
-        "title": article_title,
-        "gender": gender_data or {},
-        "age": age_data or {},
-        "region": region_data or {},
-    }
+        logs.append("  ⚠️ 未找到'年龄分布'区域")
 
     logs.append("  ✅ 解析完成")
-    return result, distributions, logs
+    return result, logs
 
 
-# ===================== 辅助：百分比字符串转浮点数 =====================
+# ===================== 辅助函数 =====================
 
 def pct_to_float(s):
-    """把 '48.83%' 转成 48.83，解析失败返回 0"""
+    """把 '48.83%' 或数字 转成 48.83，解析失败返回 0"""
     try:
+        if isinstance(s, (int, float)):
+            return float(s)
         return float(str(s).replace('%', '').strip())
     except Exception:
         return 0.0
 
 
-def build_unified_df(all_results, all_distributions):
-    """
-    构建一张宽表：核心指标 + 性别分布 + 年龄分布
-    每一行是一篇文章，列顺序：
-      文章标题, ...核心指标..., 完读率, 男(%), 女(%),
-      0-17岁(%), 18-25岁(%), 26-35岁(%), 36-45岁(%), 46-55岁(%), 56-65岁(%), 65岁以上(%)
-    """
-    # 收集所有性别/年龄键
-    all_gender_keys = []
-    all_age_keys = []
-    age_order = ["0-17岁", "18-25岁", "26-35岁", "36-45岁", "46-55岁", "56-65岁", "65岁以上", "未知"]
+# 列顺序
+COLUMN_ORDER = [
+    "文章标题", "全部阅读人数", "送达人数", "首次分享人数", "分享产生的阅读人数",
+    "推荐阅读人数", "其他阅读人数",
+    "公众号消息阅读人数", "公众号主页阅读人数", "搜一搜阅读人数",
+    "朋友圈阅读人数", "聊天会话阅读人数", "阅读后关注人数", "点赞人数",
+    "评论次数", "总分享人数", "在看人数", "收藏人数", "停留时间", "完读率",
+    # 性别分布
+    "性别_女", "性别_男", "性别_未知",
+    # 年龄分布
+    "年龄_18岁以下", "年龄_18-25岁", "年龄_26-35岁", "年龄_36-45岁",
+    "年龄_46-60岁", "年龄_60岁以上", "年龄_未知",
+]
 
-    for dist in all_distributions:
-        for k in dist.get("gender", {}).keys():
-            if k not in all_gender_keys:
-                all_gender_keys.append(k)
-        for k in dist.get("age", {}).keys():
-            if k not in all_age_keys:
-                all_age_keys.append(k)
+# 年龄展示顺序
+AGE_ORDER = [
+    "年龄_18岁以下", "年龄_18-25岁", "年龄_26-35岁", "年龄_36-45岁",
+    "年龄_46-60岁", "年龄_60岁以上", "年龄_未知",
+]
 
-    # 对年龄键按预设顺序排列
-    sorted_age_keys = [k for k in age_order if k in all_age_keys]
-    for k in all_age_keys:
-        if k not in sorted_age_keys:
-            sorted_age_keys.append(k)
-
-    rows = []
-    for i, res in enumerate(all_results):
-        dist = all_distributions[i]
-        row = dict(res)
-
-        # 完读率格式化（转为 xx.x% 字符串）
-        cr = row.get("完读率", 0)
-        if cr <= 1:
-            row["完读率"] = f"{cr:.1%}"
-        else:
-            row["完读率"] = f"{cr:.1f}%"
-
-        # 停留时间格式化
-        st_val = row.get("停留时间", 0)
-        row["停留时间"] = f"{st_val:.0f}秒"
-
-        # 性别分布列
-        gender_dict = dist.get("gender", {})
-        for gk in all_gender_keys:
-            col_name = f"性别-{gk}(%)"
-            val = gender_dict.get(gk, "")
-            row[col_name] = pct_to_float(val) if val else ""
-
-        # 年龄分布列
-        age_dict = dist.get("age", {})
-        for ak in sorted_age_keys:
-            col_name = f"年龄-{ak}(%)"
-            val = age_dict.get(ak, "")
-            row[col_name] = pct_to_float(val) if val else ""
-
-        rows.append(row)
-
-    # 确定列顺序
-    core_cols = [
-        "文章标题", "全部阅读人数", "送达人数", "推荐阅读人数", "其他阅读人数",
-        "公众号消息阅读人数", "公众号主页阅读人数", "搜一搜阅读人数",
-        "朋友圈阅读人数", "聊天会话阅读人数", "阅读后关注人数", "点赞人数",
-        "评论次数", "总分享人数", "在看人数", "停留时间", "完读率"
-    ]
-    gender_cols = [f"性别-{k}(%)" for k in all_gender_keys]
-    age_cols = [f"年龄-{k}(%)" for k in sorted_age_keys]
-    final_cols = core_cols + gender_cols + age_cols
-
-    df = pd.DataFrame(rows)
-    for col in final_cols:
-        if col not in df.columns:
-            df[col] = ""
-    return df[final_cols]
+GENDER_KEYS = ["性别_女", "性别_男", "性别_未知"]
 
 
 # ===================== Streamlit UI =====================
@@ -349,7 +382,7 @@ with st.expander("📖 使用说明", expanded=False):
     3. **解析汇总**：系统自动提取核心指标 + 性别/年龄分布，所有数据整合在一张表中
     4. **下载结果**：点击"下载 Excel 结果"按钮，保存到本地
 
-    > 💡 下载的 Excel 列顺序：文章标题 → 各项指标 → 完读率 → 性别分布(%) → 年龄分布(%)
+    > 💡 下载的 Excel 列顺序：文章标题 → 各项指标 → 完读率 → 性别分布 → 年龄分布
     """)
 
 # 文件上传区域
@@ -366,7 +399,6 @@ if uploaded_files:
 
     if st.button("🚀 开始解析", type="primary", use_container_width=True):
         all_results = []
-        all_distributions = []
         all_logs = []
         failed_files = []
 
@@ -378,14 +410,13 @@ if uploaded_files:
             progress.progress((i + 1) / len(uploaded_files))
 
             file_bytes = uploaded_file.read()
-            result, distributions, logs = parse_wx_excel(file_bytes, uploaded_file.name)
+            result, logs = parse_wx_excel(file_bytes, uploaded_file.name)
 
             all_logs.extend(logs)
             all_logs.append("")
 
             if result:
                 all_results.append(result)
-                all_distributions.append(distributions)
             else:
                 failed_files.append(uploaded_file.name)
 
@@ -393,40 +424,46 @@ if uploaded_files:
         status_text.empty()
 
         if all_results:
-            # ── 构建宽表（核心指标 + 性别/年龄分布在同一Sheet）──
-            df_unified = build_unified_df(all_results, all_distributions)
+            # ── 构建宽表 ──
+            df_output = pd.DataFrame(all_results)
+            for col in COLUMN_ORDER:
+                if col not in df_output.columns:
+                    df_output[col] = 0
+            df_output = df_output[COLUMN_ORDER]
 
             # ── 顶部汇总指标 ──
             col1, col2, col3 = st.columns(3)
             col1.metric("✅ 成功解析", f"{len(all_results)} 篇")
             col2.metric("❌ 解析失败", f"{len(failed_files)} 篇")
-            # 全部阅读人数是整型，停留时间/完读率已格式化为字符串，需从原始数据取
             total_read = sum(r.get("全部阅读人数", 0) for r in all_results)
             col3.metric("📈 总阅读人数", f"{total_read:,}")
 
             st.markdown("---")
 
+            # ── 数据总览 ──
             st.markdown("### 📈 数据总览")
-            m1, m2, m3, m4, m5 = st.columns(5)
+            m1, m2, m3, m4, m5, m6 = st.columns(6)
             total_send = sum(r.get("送达人数", 0) for r in all_results)
             total_like = sum(r.get("点赞人数", 0) for r in all_results)
             total_share = sum(r.get("总分享人数", 0) for r in all_results)
+            total_fav = sum(r.get("收藏人数", 0) for r in all_results)
             avg_stay = sum(r.get("停留时间", 0) for r in all_results) / len(all_results)
             avg_cr_raw = sum(r.get("完读率", 0) for r in all_results) / len(all_results)
             m1.metric("总送达人数", f"{total_send:,}")
             m2.metric("总点赞人数", f"{total_like:,}")
             m3.metric("总分享人数", f"{total_share:,}")
-            m4.metric("平均停留时间", f"{avg_stay:.1f}秒")
+            m4.metric("总收藏人数", f"{total_fav:,}")
+            m5.metric("平均停留时间", f"{avg_stay:.1f}秒")
             if avg_cr_raw <= 1:
-                m5.metric("平均完读率", f"{avg_cr_raw:.1%}")
+                m6.metric("平均完读率", f"{avg_cr_raw:.1%}")
             else:
-                m5.metric("平均完读率", f"{avg_cr_raw:.1f}%")
+                m6.metric("平均完读率", f"{avg_cr_raw:.1f}%")
 
             st.markdown("---")
 
-            # ── 解析结果明细（宽表预览）──
+            # ── 解析结果明细 ──
             st.markdown("### 📋 解析结果明细（含性别/年龄分布）")
-            st.dataframe(df_unified, use_container_width=True, hide_index=True)
+            st.dataframe(df_output, use_container_width=True, hide_index=True)
 
             # ── 渠道分布图 ──
             st.markdown("---")
@@ -452,80 +489,54 @@ if uploaded_files:
             st.markdown("---")
             st.markdown("### 👥 受众画像分布（多篇加权均值）")
 
-            gender_merged = {}
-            age_merged = {}
-            region_merged = {}
+            # 加权合并性别/年龄分布
+            gender_merged = {k: 0.0 for k in GENDER_KEYS}
+            age_merged = {k: 0.0 for k in AGE_ORDER}
             total_readers = sum(r.get("全部阅读人数", 1) or 1 for r in all_results)
 
-            for i, dist in enumerate(all_distributions):
-                readers = all_results[i].get("全部阅读人数", 1) or 1
-                weight = readers / total_readers if total_readers > 0 else 1 / len(all_distributions)
-                for k, v in dist.get("gender", {}).items():
-                    gender_merged[k] = gender_merged.get(k, 0) + pct_to_float(v) * weight
-                for k, v in dist.get("age", {}).items():
-                    age_merged[k] = age_merged.get(k, 0) + pct_to_float(v) * weight
-                for k, v in dist.get("region", {}).items():
-                    region_merged[k] = region_merged.get(k, 0) + pct_to_float(v) * weight
+            for r in all_results:
+                readers = r.get("全部阅读人数", 1) or 1
+                weight = readers / total_readers if total_readers > 0 else 1 / len(all_results)
+                for gk in GENDER_KEYS:
+                    gender_merged[gk] += pct_to_float(r.get(gk, 0)) * weight
+                for ak in AGE_ORDER:
+                    age_merged[ak] += pct_to_float(r.get(ak, 0)) * weight
 
-            tab1, tab2, tab3 = st.tabs(["⚥ 性别分布", "🎂 年龄分布", "🗺️ 地域分布"])
+            tab1, tab2 = st.tabs(["⚥ 性别分布", "🎂 年龄分布"])
 
             with tab1:
-                if gender_merged:
-                    gdf = pd.DataFrame({
-                        "性别": list(gender_merged.keys()),
-                        "占比(%)": [round(v, 2) for v in gender_merged.values()]
-                    })
+                gdf = pd.DataFrame({
+                    "性别": [k.replace("性别_", "") for k in GENDER_KEYS],
+                    "占比(%)": [round(gender_merged[k], 2) for k in GENDER_KEYS]
+                })
+                gdf = gdf[gdf["占比(%)"] > 0]
+                if not gdf.empty:
                     gcols = st.columns(len(gdf))
-                    for ci, row in gdf.iterrows():
+                    for ci, (_, row) in enumerate(gdf.iterrows()):
                         gcols[ci].metric(row["性别"], f"{row['占比(%)']:.2f}%")
                     st.bar_chart(gdf.set_index("性别"), use_container_width=True)
                 else:
                     st.info("未解析到性别分布数据")
 
             with tab2:
-                if age_merged:
-                    age_order_disp = ["0-17岁", "18-25岁", "26-35岁", "36-45岁",
-                                      "46-55岁", "56-65岁", "65岁以上", "未知"]
-                    sorted_age = {k: age_merged[k] for k in age_order_disp if k in age_merged}
-                    for k in age_merged:
-                        if k not in sorted_age:
-                            sorted_age[k] = age_merged[k]
-                    adf = pd.DataFrame({
-                        "年龄段": list(sorted_age.keys()),
-                        "占比(%)": [round(v, 2) for v in sorted_age.values()]
-                    })
+                adf = pd.DataFrame({
+                    "年龄段": [k.replace("年龄_", "") for k in AGE_ORDER],
+                    "占比(%)": [round(age_merged[k], 2) for k in AGE_ORDER]
+                })
+                adf = adf[adf["占比(%)"] > 0]
+                if not adf.empty:
                     st.bar_chart(adf.set_index("年龄段"), use_container_width=True)
                     st.dataframe(adf, use_container_width=True, hide_index=True)
                 else:
                     st.info("未解析到年龄分布数据")
 
-            with tab3:
-                if region_merged:
-                    rdf = pd.DataFrame({
-                        "省份": list(region_merged.keys()),
-                        "占比(%)": [round(v, 2) for v in region_merged.values()]
-                    }).sort_values("占比(%)", ascending=False).head(15)
-                    st.bar_chart(rdf.set_index("省份"), use_container_width=True)
-                    st.dataframe(rdf, use_container_width=True, hide_index=True)
-                else:
-                    st.info("未解析到地域分布数据")
-
-            # ── 下载结果（单一Sheet宽表）──
+            # ── 下载结果 ──
             st.markdown("---")
             st.markdown("### 💾 下载结果")
 
             excel_buffer = io.BytesIO()
             with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                # 单一Sheet：核心指标 + 性别分布 + 年龄分布
-                df_unified.to_excel(writer, index=False, sheet_name='数据汇总')
-
-                # 地域分布单独一个Sheet（省份太多不适合横向展开）
-                if region_merged:
-                    rdf_export = pd.DataFrame({
-                        "省份": list(region_merged.keys()),
-                        "占比(%)": [round(v, 2) for v in region_merged.values()]
-                    }).sort_values("占比(%)", ascending=False)
-                    rdf_export.to_excel(writer, index=False, sheet_name='地域分布')
+                df_output.to_excel(writer, index=False, sheet_name='数据汇总')
 
             excel_buffer.seek(0)
 
@@ -540,7 +551,7 @@ if uploaded_files:
                 )
             with col_dl2:
                 csv_buffer = io.StringIO()
-                df_unified.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
+                df_output.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
                 st.download_button(
                     label="📥 下载 CSV（全部数据）",
                     data=csv_buffer.getvalue().encode('utf-8-sig'),
